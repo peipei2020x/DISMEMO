@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord風ローカルメモ v3.0</title>
+    <style>
+        /* --- 全体的なスタイルとテーマ --- */
+        :root {
+            --background-primary: #36393f;
+            --background-secondary: #2f3136;
+            --background-tertiary: #202225;
+            --header-primary: #ffffff;
+            --text-normal: #dcddde;
+            --text-muted: #72767d;
+            --interactive-normal: #b9bbbe;
+            --interactive-hover: #dcddde;
+            --border-color: rgba(255, 255, 255, 0.06);
+            --scrollbar-thumb: var(--background-tertiary);
+            --scrollbar-track: var(--background-secondary);
+            --glass-bg-primary: rgba(54, 57, 63, 0.5);
+            --glass-bg-secondary: rgba(47, 49, 54, 0.6);
+            --glass-bg-tertiary: rgba(32, 34, 37, 0.7);
+            --glass-blur: 10px;
+            --accent-color: #5865f2;
+            --danger-color: #f04747;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUpIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            margin: 0;
+            color: var(--text-normal);
+            background-color: var(--background-primary);
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            overflow: hidden;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        /* --- メインレイアウト --- */
+        .app-container { display: flex; height: 100vh; }
+
+        /* --- グラスモーフィズム効果 --- */
+        .glass-effect {
+            backdrop-filter: blur(var(--glass-blur));
+            -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--border-color);
+        }
+
+        /* --- サーバーリスト --- */
+        .servers-list {
+            width: 72px;
+            background-color: var(--glass-bg-tertiary);
+            padding: 12px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        .server-icon {
+            width: 48px; height: 48px;
+            background-color: var(--background-primary);
+            border-radius: 50%;
+            margin-bottom: 8px;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .server-icon:hover, .server-icon.active { border-radius: 16px; background-color: var(--accent-color); }
+        .server-icon.active::before { content: ''; position: absolute; left: -12px; width: 4px; height: 40px; background-color: white; border-radius: 0 4px 4px 0; }
+        .server-icon#settings-button:hover { background-color: #3ba55d; }
+        .server-icon-label { font-size: 18px; font-weight: bold; color: var(--header-primary); }
+
+        /* --- チャンネル＆ユーザーエリア --- */
+        .channels-container { width: 240px; background-color: var(--glass-bg-secondary); display: flex; flex-direction: column; flex-shrink: 0; }
+        .server-name { padding: 0 16px; height: 48px; font-size: 16px; font-weight: 600; color: var(--header-primary); border-bottom: 1px solid var(--border-color); display: flex; align-items: center; flex-shrink: 0; }
+        .channels-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 8px 4px 16px; color: var(--text-muted); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .add-channel-btn { cursor: pointer; color: var(--interactive-normal); }
+        .add-channel-btn:hover { color: var(--interactive-hover); }
+        .channels-list { padding: 8px; overflow-y: auto; flex-grow: 1; }
+        .channel-item { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; cursor: pointer; color: var(--interactive-normal); font-weight: 500; transition: background-color 0.15s ease, color 0.15s ease; }
+        .channel-item-name { display: flex; align-items: center; }
+        .channel-item:hover { background-color: rgba(255, 255, 255, 0.05); color: var(--interactive-hover); }
+        .channel-item.active { background-color: rgba(255, 255, 255, 0.1); color: var(--header-primary); }
+        .channel-icon { margin-right: 6px; color: var(--text-muted); }
+        .delete-channel-btn { display: none; color: var(--interactive-normal); }
+        .channel-item:hover .delete-channel-btn { display: block; }
+        .delete-channel-btn:hover { color: var(--danger-color); }
+
+        /* --- チャットエリア --- */
+        .chat-container { flex-grow: 1; display: flex; flex-direction: column; background-color: var(--glass-bg-primary); }
+        .chat-header { height: 48px; padding: 0 16px; display: flex; align-items: center; font-size: 16px; font-weight: 600; color: var(--header-primary); border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+        .header-channel-icon { margin-right: 8px; font-size: 20px; color: var(--text-muted); }
+        .messages-wrapper { flex-grow: 1; overflow-y: auto; padding: 0 16px; }
+        .message { display: flex; padding: 16px 0; border-top: 1px solid rgba(255, 255, 255, 0.03); position: relative; animation: slideUpIn 0.3s ease-out; }
+        .message:first-child { border-top: none; }
+        .message-avatar { width: 40px; height: 40px; border-radius: 50%; background-color: #7289da; margin-right: 16px; flex-shrink: 0; background-size: cover; background-position: center; }
+        .message-content { display: flex; flex-direction: column; width: 100%; }
+        .message-header { display: flex; align-items: baseline; margin-bottom: 4px; }
+        .message-username { color: var(--header-primary); font-weight: 500; margin-right: 8px; }
+        .message-timestamp { color: var(--text-muted); font-size: 12px; }
+        .message-text { line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+        .message-text a { color: #00a8fc; text-decoration: none; }
+        .message-text a:hover { text-decoration: underline; }
+        .message-image { max-width: 400px; max-height: 300px; margin-top: 8px; border-radius: 4px; cursor: pointer; transition: opacity 0.2s; }
+        .message-image:hover { opacity: 0.8; }
+        .message-toolbar { position: absolute; top: 8px; right: 16px; background-color: var(--background-secondary); border-radius: 4px; padding: 4px; display: none; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .message:hover .message-toolbar { display: block; }
+        .delete-msg-btn { cursor: pointer; color: var(--interactive-normal); }
+        .delete-msg-btn:hover { color: var(--danger-color); }
+
+        /* --- 入力フォーム --- */
+        .chat-input-area { padding: 0 16px 24px 16px; flex-shrink: 0; margin-top: 8px; }
+        .chat-input-form { background-color: #40444b; border-radius: 8px; padding: 0 12px; display: flex; align-items: center; }
+        .upload-btn { padding: 8px; cursor: pointer; }
+        .chat-input { width: 100%; border: none; background: none; padding: 12px 0; color: var(--text-normal); font-size: 15px; outline: none; margin: 0 8px; }
+        .image-preview-container { position: relative; margin-top: 8px; }
+        .image-preview { max-height: 100px; border-radius: 4px; }
+        .clear-preview-btn { position: absolute; top: 4px; right: 4px; background-color: rgba(0,0,0,0.7); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-weight: bold; }
+
+        /* --- カスタマイズ用モーダル --- */
+        .modal-backdrop { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background-color: var(--background-secondary); padding: 24px; border-radius: 8px; width: 440px; }
+        .modal-header { font-size: 20px; font-weight: 600; color: var(--header-primary); margin-bottom: 20px; }
+        .modal-close { float: right; cursor: pointer; color: var(--interactive-normal); transition: color 0.2s; }
+        .modal-close:hover { color: white; }
+        .setting-item { margin-bottom: 20px; }
+        .setting-item label { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--interactive-normal); }
+        .avatar-setting { display: flex; align-items: center; }
+        .avatar-preview { width: 60px; height: 60px; border-radius: 50%; background-color: #7289da; margin-right: 16px; background-size: cover; background-position: center; }
+
+        /* --- ヘルパー --- */
+        .hidden { display: none; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-corner { background-color: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 4px; }
+        ::-webkit-scrollbar-track { background-color: var(--scrollbar-track); }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- サーバーリスト -->
+        <div class="servers-list glass-effect">
+             <div class="server-icon active" data-server-id="1"><span class="server-icon-label">メモ</span></div>
+             <div class="server-icon" id="settings-button" title="設定"><svg width="28" height="28" viewBox="0 0 24 24"><path fill="currentColor" d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.69-1.62-0.92L14.4,2.23C14.34,2.01,14.12,1.86,13.88,1.86 h-3.8c-0.24,0-0.45,0.15-0.52,0.37L9.1,4.55C8.51,4.78,7.99,5.09,7.48,5.47L5.09,4.51C4.88,4.44,4.63,4.5,4.5,4.72L2.58,8.04 c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C4.68,10.54,4.66,10.86,4.66,11.19s0.02,0.65,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.69,1.62,0.92l0.48,2.32 c0.06,0.22,0.28,0.37,0.52,0.37h3.8c0.24,0,0.45-0.15,0.52-0.37l0.48-2.32c0.59-0.23,1.12-0.54,1.62-0.92l2.39,0.96 c0.22,0.08,0.47,0.02,0.59-0.22l1.92-3.32c0.12-0.2,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"></path></svg></div>
+        </div>
+        <!-- チャンネルリスト -->
+        <div class="channels-container glass-effect">
+            <div class="server-name">ローカルメモ</div>
+            <div class="channels-header">
+                <span>テキストチャンネル</span>
+                <div class="add-channel-btn" id="add-channel-button" title="チャンネル作成">
+                    <svg width="18" height="18" viewBox="0 0 24 24"><path fill="currentColor" d="M20 11.5h-7.5V4h-1v7.5H4v1h7.5V20h1v-7.5H20v-1z"></path></svg>
+                </div>
+            </div>
+            <div class="channels-list" id="channels-list"></div>
+        </div>
+        <!-- チャットエリア -->
+        <div class="chat-container glass-effect">
+            <div class="chat-header">
+                <span class="header-channel-icon">#</span>
+                <span id="chat-header-channel-name"></span>
+            </div>
+            <div class="messages-wrapper" id="messages-wrapper"></div>
+            <div class="chat-input-area">
+                <div id="image-preview-wrapper" class="hidden">
+                    <div class="image-preview-container">
+                        <img id="image-preview-element" class="image-preview">
+                        <button id="clear-preview-button" class="clear-preview-btn">×</button>
+                    </div>
+                </div>
+                <form id="message-form" class="chat-input-form">
+                    <label for="image-upload-input" class="upload-btn"><svg width="24" height="24" viewBox="0 0 24 24"><path fill="#b9bbbe" d="M12 2.00098C6.486 2.00098 2 6.48698 2 12.001C2 17.515 6.486 22.001 12 22.001C17.514 22.001 22 17.515 22 12.001C22 6.48698 17.514 2.00098 12 2.00098ZM17 13.001H13V17.001H11V13.001H7V11.001H11V7.00098H13V11.001H17V13.001Z"></path></svg></label>
+                    <input type="file" id="image-upload-input" class="hidden" accept="image/*">
+                    <input type="text" id="message-input" class="chat-input" placeholder="" autocomplete="off">
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 設定モーダル -->
+    <div id="settings-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <div class="modal-header"><span>設定</span><span class="modal-close" id="modal-close-button">×</span></div>
+            <div class="settings-body">
+                <div class="setting-item">
+                    <label>アバターの変更</label>
+                    <div class="avatar-setting">
+                        <div id="avatar-preview" class="avatar-preview"></div>
+                        <input type="file" id="avatar-upload" accept="image/*">
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label for="bg-image-upload">背景画像の変更</label>
+                    <input type="file" id="bg-image-upload" accept="image/*">
+                    <button id="bg-image-clear" style="margin-top: 8px;">背景をクリア</button>
+                </div>
+                <div class="setting-item">
+                    <label for="glass-blur-slider">すりガラス効果の強さ: <span id="glass-blur-value">10</span>px</label>
+                    <input type="range" id="glass-blur-slider" min="0" max="20" step="1" value="10">
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- DOM要素の取得 ---
+    const dom = {
+        appContainer: document.querySelector('.app-container'),
+        messageInput: document.getElementById('message-input'),
+        messageForm: document.getElementById('message-form'),
+        messagesWrapper: document.getElementById('messages-wrapper'),
+        channelsList: document.getElementById('channels-list'),
+        chatHeaderChannelName: document.getElementById('chat-header-channel-name'),
+        imageUploadInput: document.getElementById('image-upload-input'),
+        imagePreviewWrapper: document.getElementById('image-preview-wrapper'),
+        imagePreviewElement: document.getElementById('image-preview-element'),
+        clearPreviewButton: document.getElementById('clear-preview-button'),
+        addChannelButton: document.getElementById('add-channel-button'),
+        settingsButton: document.getElementById('settings-button'),
+        settingsModal: document.getElementById('settings-modal'),
+        modalCloseButton: document.getElementById('modal-close-button'),
+        avatarUpload: document.getElementById('avatar-upload'),
+        avatarPreview: document.getElementById('avatar-preview'),
+        bgImageUpload: document.getElementById('bg-image-upload'),
+        bgImageClear: document.getElementById('bg-image-clear'),
+        glassBlurSlider: document.getElementById('glass-blur-slider'),
+        glassBlurValue: document.getElementById('glass-blur-value'),
+    };
+
+    // --- データ構造と状態管理 ---
+    let state = {};
+    const defaultState = {
+        activeServerId: 1,
+        activeChannelId: 101,
+        servers: [{
+            id: 1, name: "ローカルメモ",
+            channels: [{ id: 101, name: "general" }, { id: 102, name: "todo" }]
+        }],
+        messages: {
+            '101': [{
+                id: Date.now(), user: 'System', text: 'ようこそ！\nチャンネルの追加・削除や背景のカスタマイズが可能です。',
+                timestamp: new Date().toLocaleString(), image: null
+            }]
+        },
+        settings: { userAvatar: null, backgroundImage: null, glassBlur: 10 },
+        imagePreviewData: null
+    };
+
+    // --- データ永続化 (localStorage) ---
+    function saveData() {
+        try {
+            localStorage.setItem('discordMemoData_v3', JSON.stringify(state));
+        } catch (e) {
+            console.error("データの保存に失敗しました: ", e);
+            alert("データの保存に失敗しました。");
+        }
+    }
+
+    function loadData() {
+        const savedData = localStorage.getItem('discordMemoData_v3');
+        if (savedData) {
+            state = JSON.parse(savedData);
+            // 互換性チェック
+            if (!state.settings || state.settings.glassBlur === undefined) {
+                state.settings = defaultState.settings;
+            }
+            if(!state.servers || state.servers[0].channels.length === 0){
+                state.servers = defaultState.servers;
+                state.activeChannelId = defaultState.activeChannelId;
+            }
+        } else {
+            state = JSON.parse(JSON.stringify(defaultState)); // Deep copy
+        }
+    }
+
+    // --- ユーティリティ関数 ---
+    function linkify(text) {
+        const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+        const element = document.createElement('div');
+        element.innerText = text;
+        return element.innerHTML.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+    }
+
+    // --- レンダリング（描画）関数 ---
+    function renderAll() {
+        renderChannels();
+        renderMessages();
+        applySettings();
+        updateChatHeader();
+    }
+    
+    function renderChannels() {
+        const server = state.servers.find(s => s.id === state.activeServerId);
+        if (!server) return;
+        
+        dom.channelsList.innerHTML = '';
+        server.channels.forEach(channel => {
+            const channelEl = document.createElement('div');
+            channelEl.className = `channel-item ${channel.id === state.activeChannelId ? 'active' : ''}`;
+            channelEl.dataset.channelId = channel.id;
+            channelEl.innerHTML = `
+                <div class="channel-item-name">
+                    <span class="channel-icon">#</span>
+                    <span>${channel.name}</span>
+                </div>
+                <div class="delete-channel-btn" title="チャンネル削除">
+                    <svg width="16" height="16" viewBox="0 0 24 24"><path fill="currentColor" d="M18.3 5.71a.996.996 0 0 0-1.41 0L12 10.59 7.11 5.7A.996.996 0 1 0 5.7 7.11L10.59 12 5.7 16.89a.996.996 0 1 0 1.41 1.41L12 13.41l4.89 4.89a.996.996 0 1 0 1.41-1.41L13.41 12l4.89-4.89c.38-.38.38-1.02 0-1.4z"></path></svg>
+                </div>
+            `;
+            dom.channelsList.appendChild(channelEl);
+        });
+    }
+
+    function renderMessages() {
+        dom.messagesWrapper.innerHTML = '';
+        const channelMessages = state.messages[state.activeChannelId] || [];
+        
+        channelMessages.forEach(msg => {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            messageEl.dataset.messageId = msg.id;
+            
+            const imageHtml = msg.image ? `<img src="${msg.image}" alt="添付画像" class="message-image">` : '';
+            const avatarStyle = msg.user === 'User' && state.settings.userAvatar ? `style="background-image: url('${state.settings.userAvatar}')"` : '';
+            
+            messageEl.innerHTML = `
+                <div class="message-avatar" ${avatarStyle}></div>
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-username">${msg.user}</span>
+                        <span class="message-timestamp">${msg.timestamp}</span>
+                    </div>
+                    <div class="message-text">${linkify(msg.text)}</div>
+                    ${imageHtml}
+                </div>
+                <div class="message-toolbar">
+                    <div class="delete-msg-btn" title="削除">
+                        <svg width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M15 4V3H9v1H4v2h1v13c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V6h1V4h-5zm2 15H7V6h10v13z"></path><path fill="currentColor" d="M9 8h2v9H9zm4 0h2v9h-2z"></path></svg>
+                    </div>
+                </div>`;
+            dom.messagesWrapper.appendChild(messageEl);
+        });
+        dom.messagesWrapper.scrollTop = dom.messagesWrapper.scrollHeight;
+    }
+    
+    function applySettings() {
+        document.body.style.backgroundImage = state.settings.backgroundImage ? `url(${state.settings.backgroundImage})` : '';
+        document.documentElement.style.setProperty('--glass-blur', `${state.settings.glassBlur}px`);
+        dom.glassBlurSlider.value = state.settings.glassBlur;
+        dom.glassBlurValue.textContent = state.settings.glassBlur;
+        dom.avatarPreview.style.backgroundImage = state.settings.userAvatar ? `url('${state.settings.userAvatar}')` : 'none';
+    }
+
+    function updateChatHeader() {
+        const channel = state.servers[0].channels.find(c => c.id === state.activeChannelId);
+        if (channel) {
+            dom.chatHeaderChannelName.textContent = channel.name;
+            dom.messageInput.placeholder = `#${channel.name} へのメッセージ`;
+        } else {
+             dom.chatHeaderChannelName.textContent = '不明なチャンネル';
+             dom.messageInput.placeholder = 'チャンネルを選択してください';
+        }
+    }
+
+    function clearImagePreview() {
+        state.imagePreviewData = null;
+        dom.imageUploadInput.value = '';
+        dom.imagePreviewWrapper.classList.add('hidden');
+    }
+
+    // --- イベントハンドラ ---
+    function handleChannelSelect(e) {
+        const channelItem = e.target.closest('.channel-item');
+        if (!channelItem) return;
+        
+        const deleteBtn = e.target.closest('.delete-channel-btn');
+        if (deleteBtn) {
+            handleDeleteChannel(parseInt(channelItem.dataset.channelId, 10));
+        } else if (!channelItem.classList.contains('active')) {
+            state.activeChannelId = parseInt(channelItem.dataset.channelId, 10);
+            renderChannels();
+            renderMessages();
+            updateChatHeader();
+            saveData();
+        }
+    }
+
+    function handleAddChannel() {
+        const channelName = prompt("新しいチャンネル名を入力してください:");
+        if (channelName && channelName.trim() !== '') {
+            const newChannel = {
+                id: Date.now(),
+                name: channelName.trim()
+            };
+            state.servers[0].channels.push(newChannel);
+            state.activeChannelId = newChannel.id; // 新しいチャンネルをアクティブに
+            renderAll();
+            saveData();
+        }
+    }
+    
+    function handleDeleteChannel(channelId) {
+        const channels = state.servers[0].channels;
+        if (channels.length <= 1) {
+            alert("最後のチャンネルは削除できません。");
+            return;
+        }
+        if (confirm(`チャンネル「${channels.find(c => c.id === channelId).name}」を削除しますか？`)) {
+            state.servers[0].channels = channels.filter(c => c.id !== channelId);
+            // 削除したチャンネルがアクティブだった場合、別のチャンネルをアクティブにする
+            if (state.activeChannelId === channelId) {
+                state.activeChannelId = state.servers[0].channels[0].id;
+            }
+            // 関連メッセージは残しておく（必要ならここで削除ロジックを追加）
+            // delete state.messages[channelId];
+            renderAll();
+            saveData();
+        }
+    }
+
+    function handleMessageSubmit(e) {
+        e.preventDefault();
+        const text = dom.messageInput.value.trim();
+        if (text === '' && !state.imagePreviewData) return;
+
+        if (!state.messages[state.activeChannelId]) {
+            state.messages[state.activeChannelId] = [];
+        }
+        state.messages[state.activeChannelId].push({
+            id: Date.now(), user: 'User', text: text,
+            timestamp: new Date().toLocaleString(), image: state.imagePreviewData
+        });
+        saveData();
+        renderMessages();
+        dom.messageInput.value = '';
+        clearImagePreview();
+    }
+
+    function handleDeleteMessage(e) {
+        const deleteButton = e.target.closest('.delete-msg-btn');
+        if (!deleteButton) return;
+        const messageEl = e.target.closest('.message');
+        const messageId = parseInt(messageEl.dataset.messageId, 10);
+        const channelMessages = state.messages[state.activeChannelId];
+        if(channelMessages) {
+            state.messages[state.activeChannelId] = channelMessages.filter(msg => msg.id !== messageId);
+            saveData();
+            renderMessages();
+        }
+    }
+
+    function handleFileSelect(e, callback) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => callback(event.target.result);
+        reader.readAsDataURL(file);
+    }
+    
+    // --- イベントリスナーの登録 ---
+    dom.channelsList.addEventListener('click', handleChannelSelect);
+    dom.addChannelButton.addEventListener('click', handleAddChannel);
+    dom.messageForm.addEventListener('submit', handleMessageSubmit);
+    dom.messagesWrapper.addEventListener('click', handleDeleteMessage);
+    dom.clearPreviewButton.addEventListener('click', clearImagePreview);
+    
+    dom.imageUploadInput.addEventListener('change', (e) => handleFileSelect(e, data => {
+        state.imagePreviewData = data;
+        dom.imagePreviewElement.src = data;
+        dom.imagePreviewWrapper.classList.remove('hidden');
+    }));
+    
+    // 設定モーダル関連
+    dom.settingsButton.addEventListener('click', () => dom.settingsModal.style.display = 'flex');
+    dom.modalCloseButton.addEventListener('click', () => dom.settingsModal.style.display = 'none');
+    dom.settingsModal.addEventListener('click', (e) => { if (e.target === dom.settingsModal) dom.settingsModal.style.display = 'none'; });
+    
+    dom.avatarUpload.addEventListener('change', (e) => handleFileSelect(e, data => { state.settings.userAvatar = data; applySettings(); renderMessages(); saveData(); }));
+    dom.bgImageUpload.addEventListener('change', (e) => handleFileSelect(e, data => { state.settings.backgroundImage = data; applySettings(); saveData(); }));
+    dom.bgImageClear.addEventListener('click', () => { state.settings.backgroundImage = null; dom.bgImageUpload.value = ''; applySettings(); saveData(); });
+    dom.glassBlurSlider.addEventListener('input', (e) => { state.settings.glassBlur = e.target.value; applySettings(); });
+    dom.glassBlurSlider.addEventListener('change', saveData);
+
+    // --- 初期化処理 ---
+    function init() {
+        loadData();
+        renderAll();
+    }
+
+    init();
+});
+</script>
+
+</body>
+</html>
